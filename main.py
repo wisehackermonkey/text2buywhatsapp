@@ -1,36 +1,22 @@
-# from flask import Flask
-# from twilio.twiml.messaging_response import Body, Message, Redirect, MessagingResponse
-
-
-# app = Flask(__name__)
-
-# @app.route('/', methods=["GET"])
-# def hello_world():
-#     return "Hello World"
-
-# @app.route("/oran", methods=["get"])
-# def text_oran
-# response = MessagingResponse()
-# message = Message()
-# message.body('Hello World!')
-# response.append(message)
-# response.redirect('https://demo.twilio.com/welcome/sms/')
-
-# print(response)
-
 import os
 import logging
+from deta import Deta
 from twilio.rest import Client
 from flask import Flask, request, redirect, send_from_directory
-from twilio.twiml.messaging_response import MessagingResponse
+from twilio.twiml.messaging_response import Message, MessagingResponse
+from twilio import twiml
 
 logging.basicConfig(level=logging.INFO)
 
 account_sid = os.environ['TWILIO_ACCOUNT_SID']
 auth_token = os.environ['TWILIO_AUTH_TOKEN']
 myphonenumber = os.environ['PHONENUMBER']
-
+DATABASE_NAME = os.environ["DATABASE_NAME"]
+PROJECT_KEY = os.environ["PROJECT_KEY"]
 client = Client(account_sid, auth_token)
+
+deta = Deta(PROJECT_KEY)
+db = deta.Base(DATABASE_NAME)
 
 
 app = Flask(__name__, static_url_path='')
@@ -45,6 +31,16 @@ def sms_reply():
     resp.message("The Robots are coming! Head for the hills!")
     print(resp)
     return str(resp)
+@app.route("/sms_recieve", methods=["POST"])
+def sms_recieve():
+    number = request.form["From"]
+    message_body = request.form["Body"]
+    print(f" Number: {number}, Message Body: {message_body}")
+    resp = MessagingResponse()
+    resp.message(f"/sms_recieve worked!  Number: {number}, Message Body: {message_body}")
+    return (str(resp),204)
+
+
 @app.route("/send", methods=['GET'])
 def send_message():
     """EX: https://ekpert.deta.dev/send"""
