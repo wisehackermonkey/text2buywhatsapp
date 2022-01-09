@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO)
 account_sid = os.environ['TWILIO_ACCOUNT_SID']
 auth_token = os.environ['TWILIO_AUTH_TOKEN']
 myphonenumber = os.environ['PHONENUMBER']
+PHONENUMBER = os.environ['PHONENUMBER']
 DATABASE_NAME = os.environ["DATABASE_NAME"]
 PROJECT_KEY = os.environ["PROJECT_KEY"]
 client = Client(account_sid, auth_token)
@@ -21,39 +22,96 @@ db = deta.Base(DATABASE_NAME)
 
 app = Flask(__name__, static_url_path='')
 
+
+def format_options(options):
+    options_with_text_formating = [
+                f"{str(item_number+1)}) - {option}"
+                for item_number, option  in enumerate( options)
+              ]
+    return "\n".join(options_with_text_formating)
 welcome_text ="""Text to buy: 
 #1 - latest posts
 #2 - free stuff
 #3 - for sale
 Type 1, 2, or 3"""
 
+welcome_options = [
+ "latest posts",
+ "free stuff",
+ "for sale"
+]
+menu_options = [
+"back",
+"photo",
+"more details",
+"message",
+]
+latest_posts = [
+"$185 AirPod Pro  (Santa Clara)",
+"$30  snow tire chains (gilroy)",
+"$10  Yard chairs (alameda)",
+"$35  Wheelchair (santa cruz)",
+]
 
 
-def send_message(message, from_number, to_number, status_callback, media_url):
-    """send_message
+listings = {
+    "1":"""
+Commencal ebike 2021 - $185 (Palo Alto)
+With wireless charging case. Can be used through Bluetooth. top quality earbuds. Sealed.....
+""",
+    "2":"""
+snow tire chains - $30 (Santa Cruz)
+New Volt snow tire chains. Never been used, these don’t fit my current vehicle. Looking up QV339 will give you a list of compatible tire sizes
+""",
+  "3":"""
+Wheelchair - $35 (sunnyvale)
+Wheelchair for sale.
+Good condition, sturdy, comfy!
+$35 come and get it!
+"""
+}
 
-    Args:
-        message ([str]): [description]
-        from_number ([str]): [description]
-        to_number ([str]): [description]
-        status_callback ([str]): [description]
-        media_url ([List]): [description]
-    """
-    message = client.messages.create(
-                            from_=from_number,
-                            to=to_number,
+pages = {
+    "main_page": lambda options: f"""
+Text To Buy: 
+Easiest way to buy&sell stuff via Text or Whatsapp!
+{format_options(options)}""",
+    "latest_posts": lambda options: f"""
+Latest stuff:
+{format_options(options)}
+{len(options)+1}) - More...
+""",
+    "listing": lambda listing_id, menu_options=[]: f"{listings[listing_id]}{format_options(menu_options)}"
+}
+
+def send_message(message, 
+                 from_number = 'whatsapp:+14155238886',
+                 status_callback = 'https://ekpert.deta.dev/status', 
+                 media_url = [], ## ['https://ekpert.deta.dev/static/car_v1.jpg']
+                 to_number = PHONENUMBER):
+    return client.messages.create(
+                            from_ = from_number,
+                            to = to_number,
                             body=message,
-                            status_callback=status_callback,
-                            media_url=media_url,
+                            status_callback = status_callback,
+                            media_url = media_url,
                         )
-    return message
 
 formate_input = lambda text: text.strip()
+def db_put(data,phonenumber=PHONENUMBER):
+    db_response = db.put(data, myphonenumber)
+    print(f"put: {db_response}")
+
+def db_insert(data,phonenumber=PHONENUMBER):
+    db_response = db.insert(data, myphonenumber)
+    print(f"insert: {db_response}")
+    
 
 @app.route("/sms", methods=['GET', 'POST'])
 def sms_reply():
     """Respond to incoming calls with a simple text message."""
     # Start our TwiML response
+    print("/sms")
     resp = MessagingResponse()
 
     # Add a message
@@ -62,6 +120,7 @@ def sms_reply():
     return str(resp)
 @app.route("/sms_recieve", methods=["POST"])
 def sms_recieve():
+    print("/sms_recieve")
     number = request.form["From"]
     message_body = request.form["Body"]
     
@@ -70,23 +129,21 @@ def sms_recieve():
     media_url = []
     option = formate_input(message_body)
     
-    if option == "1":
-        message = """
-Latest stuff:
-1) $185 AirPod Pro  (Santa Clara)
-2) $30  snow tire chains (gilroy)
-3) $10  Yard chairs (alameda)
-4) $35  Wheelchair (santa cruz)
-5) More...
-"""
-        message = client.messages.create(
-                                from_=from_number,
-                                to=myphonenumber,
-                                body=message,
-                                status_callback=status_callback,
-                                media_url=media_url,
-                            )
-        # send_message(message, from_number, myphonenumber, status_callback, media_url)
+    user_state = db.get(myphonenumber)
+    
+    # print(f"Before Update: {user_state}")
+    if not user_state:
+        # note "option": option is a db hackable point please sanitize input
+        db_insert({"page": "main_page", "page_id": None, "option": option })
+        
+    if user_state.page == "latest_posts":
+        db_put({"page": "latest_posts", "page_id": None , "option": option })
+        send_message(pages["latest_posts"](latest_posts))
+        
+    if user_state.page == "latest_posts":
+        db_put({"page": "latest_posts", "page_id": None , "option": option })
+        send_message(pages["listing"]("3",menu_options))
+        
     else:
         message = """
 Please type "1","2","3"
@@ -103,24 +160,23 @@ Please type "1","2","3"
 
 
 @app.route("/send", methods=['GET'])
-def send_message():
+def send_page():
     """EX: https://ekpert.deta.dev/send"""
-    # message = send_message(welcome_text,
-    #     'whatsapp:+14155238886',
-    #     myphonenumber,
-    #     'https://ekpert.deta.dev/status',
-    #     ['https://ekpert.deta.dev/static/car_v1.jpg']
-    # )
+    print("/send")
+    user_state = db.get(myphonenumber)
     
-    message = client.messages.create(
-                        from_='whatsapp:+14155238886',
-                        to=myphonenumber,
-                        body=welcome_text,
-                        status_callback='https://ekpert.deta.dev/status',
-                 )
+    print(f"Before Update: {user_state}")
+    if not user_state:
+        db_response = db.insert({"page": "latest_posts", "page_id": None }, myphonenumber)
+        print(db_response)
 
+  
+    message = send_message(pages['main_page'](welcome_options))
+    user_state = db.get(myphonenumber)
+    print(f"After Update: {user_state}")
+    
     print(message.sid)
-    return str(message.sid)
+    return f"{message.sid}"
 @app.route('/static/<path:path>')
 def send_files(path):
     """EX: https://ekpert.deta.dev/static/car_v1.jpg"""
@@ -128,6 +184,7 @@ def send_files(path):
     return send_from_directory("./static",path)
 @app.route('/status',methods=["POST","GET"])
 def status():
+    print("/status")
     message_sid = request.values.get('MessageSid', None)
     message_status = request.values.get('MessageStatus', None)
     sms_status = request.values.get('SmsStatus', None)
