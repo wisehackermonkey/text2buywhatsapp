@@ -10,7 +10,6 @@ logging.basicConfig(level=logging.INFO)
 
 account_sid = os.environ['TWILIO_ACCOUNT_SID']
 auth_token = os.environ['TWILIO_AUTH_TOKEN']
-myphonenumber = os.environ['PHONENUMBER']
 PHONENUMBER = os.environ['PHONENUMBER']
 DATABASE_NAME = os.environ["DATABASE_NAME"]
 PROJECT_KEY = os.environ["PROJECT_KEY"]
@@ -42,15 +41,15 @@ welcome_options = [
 ]
 menu_options = [
 "back",
-"photo",
-"more details",
-"message",
+# "photo",
+# "more details",
+# "message",
 ]
 latest_posts = [
-"$185 AirPod Pro  (Santa Clara)",
-"$30  snow tire chains (gilroy)",
-"$10  Yard chairs (alameda)",
-"$35  Wheelchair (santa cruz)",
+    "$185 Commencal ebike 2021(Pa lo Alto)",
+    "$30  snow tire chains (gilroy)",
+    # "$10  Yard chairs (alameda)",
+    "$35  Wheelchair (santa cruz)",
 ]
 
 
@@ -81,7 +80,8 @@ Latest stuff:
 {format_options(options)}
 {len(options)+1}) - More...
 """,
-    "listing": lambda listing_id, menu_options=[]: f"{listings[listing_id]}{format_options(menu_options)}"
+    "listing": lambda listing_id, menu_options=[]: f"{listings[listing_id]}{format_options(menu_options)}",
+    "try_again":lambda _=None,__=None: "Sorry please try again"
 }
 
 def send_message(message, 
@@ -99,11 +99,11 @@ def send_message(message,
 
 formate_input = lambda text: text.strip()
 def db_put(data,phonenumber=PHONENUMBER):
-    db_response = db.put(data, myphonenumber)
+    db_response = db.put(data, PHONENUMBER)
     print(f"put: {db_response}")
 
 def db_insert(data,phonenumber=PHONENUMBER):
-    db_response = db.insert(data, myphonenumber)
+    db_response = db.insert(data, PHONENUMBER)
     print(f"insert: {db_response}")
     
 
@@ -127,28 +127,32 @@ def sms_recieve():
     from_number = 'whatsapp:+14155238886' 
     status_callback = 'https://ekpert.deta.dev/status'
     media_url = []
-    option = formate_input(message_body)
+    menu_selection = formate_input(message_body)
     
-    user_state = db.get(myphonenumber)
-    
-    # print(f"Before Update: {user_state}")
+    user_state = db.get(PHONENUMBER)
+    print(f"get: {user_state}")
     if not user_state:
-        # note "option": option is a db hackable point please sanitize input
-        db_insert({"page": "main_page", "page_id": None, "option": option })
+        # note "menu_selection": menu_selection is a db hackable point please sanitize input
+        db_insert({"page": "main_page", "page_id": None,"prev_page":None, "menu_selection": menu_selection })
+        send_message(pages['main_page'](welcome_options))
         
-    if user_state.page == "latest_posts":
-        db_put({"page": "latest_posts", "page_id": None , "option": option })
+    elif user_state["page"] == "main_page":
+        db_put({"page": "latest_posts", "page_id": None , "prev_page":"main_page", "menu_selection": menu_selection })
         send_message(pages["latest_posts"](latest_posts))
         
-    if user_state.page == "latest_posts":
-        db_put({"page": "latest_posts", "page_id": None , "option": option })
-        send_message(pages["listing"]("3",menu_options))
-        
+    elif user_state["page"] == "latest_posts":
+        page = ""
+        if menu_selection == "1":
+            page = user_state["main_page"] # which actually directs to latest_posts
+        else:
+            page = "try_again"
+        db_put({"page": page, "page_id": None , "prev_page":"latest_posts", "menu_selection": menu_selection })
+        send_message(pages["listing"](menu_selection, menu_options))
+    elif user_state["page"] == "try_again":
+        db_put({"page": user_state["prev_page"] , "page_id": None , "prev_page":"try_again", "menu_selection": menu_selection })
+        send_message(pages["try_again"]())
     else:
-        message = """
-Please type "1","2","3"
-"""
-        send_message(message, from_number, myphonenumber, status_callback, media_url)
+        send_message("Please type a number, ex: '1','2','3'")
 
         
     print(f" Number: {number}, Message Body: {message_body}")
@@ -163,16 +167,12 @@ Please type "1","2","3"
 def send_page():
     """EX: https://ekpert.deta.dev/send"""
     print("/send")
-    user_state = db.get(myphonenumber)
     
-    print(f"Before Update: {user_state}")
-    if not user_state:
-        db_response = db.insert({"page": "latest_posts", "page_id": None }, myphonenumber)
-        print(db_response)
-
+    db_put({"page": "main_page", "page_id": None,"prev_page": None, "menu_selection": None  })
+    
   
     message = send_message(pages['main_page'](welcome_options))
-    user_state = db.get(myphonenumber)
+    user_state = db.get(PHONENUMBER)
     print(f"After Update: {user_state}")
     
     print(message.sid)
