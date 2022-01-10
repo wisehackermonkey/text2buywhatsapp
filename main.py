@@ -43,6 +43,7 @@ menu_options = [
 "back",
 # "photo",
 # "more details",
+# "buy",
 # "message",
 ]
 latest_posts = [
@@ -71,9 +72,10 @@ $35 come and get it!
 }
 
 pages = {
-    "main_page": lambda options: f"""
+    "main_page": lambda _: f"""
 Text To Buy: 
-Easiest way to buy&sell stuff via Text or Whatsapp!
+Easiest way to buy&sell stuff via Text or Whatsapp!""",
+"main_page_options":  lambda options: f"""
 {format_options(options)}""",
     "latest_posts": lambda options: f"""
 Latest stuff:
@@ -127,30 +129,32 @@ def sms_recieve():
     from_number = 'whatsapp:+14155238886' 
     status_callback = 'https://ekpert.deta.dev/status'
     media_url = []
-    menu_selection = formate_input(message_body)
+    selection = formate_input(message_body)
     
     user_state = db.get(PHONENUMBER)
     print(f"get: {user_state}")
-    if not user_state:
-        # note "menu_selection": menu_selection is a db hackable point please sanitize input
-        db_insert({"page": "main_page", "page_id": None,"prev_page":None, "menu_selection": menu_selection })
-        send_message(pages['main_page'](welcome_options))
+    if not user_state or user_state["page"] == "":
         
-    elif user_state["page"] == "main_page":
-        db_put({"page": "latest_posts", "page_id": None , "prev_page":"main_page", "menu_selection": menu_selection })
-        send_message(pages["latest_posts"](latest_posts))
+        # options = {
+        #     "1": "latest_posts",
+        #     "2": "free stuff",
+        #     "3": "for sale"
+        #     }
         
+        send_message(pages["main_page"](welcome_options))
+        
+        db_put({"page": "main_page_options", "selection":"" })
+
     elif user_state["page"] == "latest_posts":
-        page = ""
-        if menu_selection == "1":
-            page = user_state["main_page"] # which actually directs to latest_posts
-        else:
-            page = "try_again"
-        db_put({"page": page, "page_id": None , "prev_page":"latest_posts", "menu_selection": menu_selection })
-        send_message(pages["listing"](menu_selection, menu_options))
-    elif user_state["page"] == "try_again":
-        db_put({"page": user_state["prev_page"] , "page_id": None , "prev_page":"try_again", "menu_selection": menu_selection })
-        send_message(pages["try_again"]())
+        send_message(pages["latest_posts"](welcome_options))
+        db_put({"page": "post", "selection": options[selection]})
+        
+    elif user_state["page"] == "post" and user_state["selection"] in listings:
+        options = {
+            "1": "latest_posts", # back
+            "2": "main_page"
+            }
+        send_message(pages["listing"](user_state["selection"], menu_options))
     else:
         send_message("Please type a number, ex: '1','2','3'")
 
@@ -168,7 +172,7 @@ def send_page():
     """EX: https://ekpert.deta.dev/send"""
     print("/send")
     
-    db_put({"page": "main_page", "page_id": None,"prev_page": None, "menu_selection": None  })
+    db_put({"page": "main_page", "page_id": None,"prev_page": None, "selection": None  })
     
   
     message = send_message(pages['main_page'](welcome_options))
