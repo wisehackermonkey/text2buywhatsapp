@@ -74,8 +74,7 @@ $35 come and get it!
 pages = {
     "main_page": lambda _: f"""
 Text To Buy: 
-Easiest way to buy&sell stuff via Text or Whatsapp!""",
-"main_page_options":  lambda options: f"""
+Easiest way to buy&sell stuff via Text or Whatsapp!
 {format_options(options)}""",
     "latest_posts": lambda options: f"""
 Latest stuff:
@@ -133,7 +132,7 @@ def sms_recieve():
     
     user_state = db.get(PHONENUMBER)
     print(f"get: {user_state}")
-    if not user_state or user_state["page"] == "":
+    if not user_state                      or user_state["page"] == "":
         
         # options = {
         #     "1": "latest_posts",
@@ -143,13 +142,13 @@ def sms_recieve():
         
         send_message(pages["main_page"](welcome_options))
         
-        db_put({"page": "main_page_options", "selection":"" })
+        db_put({"page": "latest_posts", "selection":"" })
 
     elif user_state["page"] == "latest_posts":
         send_message(pages["latest_posts"](welcome_options))
         db_put({"page": "post", "selection": options[selection]})
         
-    elif user_state["page"] == "post" and user_state["selection"] in listings:
+    elif user_state["page"]  == "post"        and user_state["selection"] in listings:
         options = {
             "1": "latest_posts", # back
             "2": "main_page"
