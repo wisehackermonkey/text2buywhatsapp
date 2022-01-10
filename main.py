@@ -132,28 +132,19 @@ def sms_recieve():
     
     user_state = db.get(PHONENUMBER)
     print(f"get: {user_state}")
-    if not user_state                      or user_state["page"] == "":
-        
-        # options = {
-        #     "1": "latest_posts",
-        #     "2": "free stuff",
-        #     "3": "for sale"
-        #     }
-        
-        send_message(pages["main_page"](welcome_options))
-        
-        db_put({"page": "latest_posts", "selection":"" })
+    if prev_page == "" and selection == "":
+        set prev page == main page
+        show main page
+    if prev_page == "main page" and selection != ""
 
-    elif user_state["page"] == "latest_posts":
-        send_message(pages["latest_posts"](welcome_options))
-        db_put({"page": "post", "selection": options[selection]})
-        
-    elif user_state["page"]  == "post"        and user_state["selection"] in listings:
-        options = {
-            "1": "latest_posts", # back
-            "2": "main_page"
-            }
-        send_message(pages["listing"](user_state["selection"], menu_options))
+        if selection is option 1
+           show list page 
+           set prev page = list page 
+        if seletion is option 2
+           show 
+    if prev page == listing and selection != ""
+        if selection is option 1
+            show 
     else:
         send_message("Please type a number, ex: '1','2','3'")
 
